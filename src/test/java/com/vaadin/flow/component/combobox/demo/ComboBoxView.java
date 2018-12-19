@@ -16,6 +16,8 @@
 package com.vaadin.flow.component.combobox.demo;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -25,12 +27,17 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.combobox.ComboBox.ItemFilter;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.ListItem;
+import com.vaadin.flow.component.html.OrderedList;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.renderer.TemplateRenderer;
 import com.vaadin.flow.demo.DemoView;
 import com.vaadin.flow.dom.ElementConstants;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.data.provider.*;
+import com.vaadin.flow.data.provider.CallbackDataProvider.CountCallback;
+import com.vaadin.flow.data.provider.CallbackDataProvider.FetchCallback;
 
 /**
  * View for {@link ComboBox} demo.
@@ -95,297 +102,59 @@ public class ComboBoxView extends DemoView {
         }
     }
 
-    private static final String WIDTH_STRING = "250px";
-
     @Override
     public void initView() {
-        createStringComboBox();
-        createDisabledComboBox();
-        createObjectComboBox();
-        createComboBoxWithObjectStringSimpleValue();
-        createComboBoxUsingTemplateRenderer();
-        createComboBoxUsingComponentRenderer();
-        createComboBoxWithInMemoryLazyLoading();
-        createComboBoxWithCallbackLazyLoading();
+        demoOverlayError();
+        demoEmptyDoesntClose();
     }
 
-    private void createStringComboBox() {
-        Div message = createMessageDiv("string-selection-message");
+    private void demoOverlayError() {
+        OrderedList instructions = new OrderedList(
+            new ListItem("Change the Species combo box to 'Cat'"),
+            new ListItem("Open the Name combo box"),
+            new ListItem("Observe the error")
+        );
 
         // begin-source-example
-        // source-example-heading: String selection
-        ComboBox<String> comboBox = new ComboBox<>("Browsers");
-        comboBox.setItems("Google Chrome", "Mozilla Firefox", "Opera",
-                "Apple Safari", "Microsoft Edge");
+        // source-example-heading: Card overlay error
+        List<String> dogs = Arrays.asList("Fido", "Pluto");
+        List<String> cats = Arrays.asList("Mittens");
 
-        comboBox.addValueChangeListener(event -> {
-            if (event.getSource().isEmpty()) {
-                message.setText("No browser selected");
-            } else {
-                message.setText("Selected browser: " + event.getValue());
-            }
+        ComboBox<String> speciesComboBox = new ComboBox<>("Species");
+        ComboBox<String> nameComboBox = new ComboBox<>("Name");
+        
+        speciesComboBox.setItems("Cat", "Dog");
+        speciesComboBox.setRequired(true);
+        speciesComboBox.setValue("Dog");
+        speciesComboBox.addValueChangeListener(change -> {
+            nameComboBox.setValue(null);
+            nameComboBox.getDataProvider().refreshAll();
         });
+
+        FetchCallback<String, String> fetch = query -> (speciesComboBox.getValue() == "Dog" ? dogs : cats).stream().limit(query.getLimit()).skip(query.getOffset());
+        CountCallback<String, String> count = query -> (speciesComboBox.getValue() == "Dog" ? dogs : cats).size();
+        nameComboBox.setDataProvider(DataProvider.fromFilteringCallbacks(fetch, count));
         // end-source-example
 
-        comboBox.getStyle().set(ElementConstants.STYLE_WIDTH, WIDTH_STRING);
-        comboBox.setId("string-selection-box");
-        addCard("String selection", comboBox, message);
+        addCard("Card overlay error", instructions, speciesComboBox, nameComboBox);
     }
-
-    private void createObjectComboBox() {
-        Div message = createMessageDiv("object-selection-message");
+    
+    private void demoEmptyDoesntClose() {
+        OrderedList instructions = new OrderedList(
+            new ListItem("Open the empty combo box"),
+            new ListItem("Observe the error")
+        );
 
         // begin-source-example
-        // source-example-heading: Object selection
-        ComboBox<Song> comboBox = new ComboBox<>();
-        comboBox.setLabel("Music selection");
-        comboBox.setItemLabelGenerator(Song::getName);
-
-        List<Song> listOfSongs = createListOfSongs();
-
-        comboBox.setItems(listOfSongs);
-        comboBox.addValueChangeListener(event -> {
-            Song song = comboBox.getValue();
-            if (song != null) {
-                message.setText("Selected song: " + song.getName()
-                        + "\nFrom album: " + song.getAlbum() + "\nBy artist: "
-                        + song.getArtist());
-            } else {
-                message.setText("No song is selected");
-            }
-        });
+        // source-example-heading: Empty list error
+        ComboBox<String> comboBox = new ComboBox<>("Empty");
+        List<String> items = Collections.emptyList();
+        
+        FetchCallback<String, String> fetch = query -> items.stream().limit(query.getLimit()).skip(query.getOffset());
+        CountCallback<String, String> count = query -> 0;
+        comboBox.setDataProvider(DataProvider.fromFilteringCallbacks(fetch, count));
         // end-source-example
 
-        comboBox.getStyle().set(ElementConstants.STYLE_WIDTH, WIDTH_STRING);
-        comboBox.setId("object-selection-box");
-        addCard("Object selection", comboBox, message);
-    }
-
-    private void createComboBoxWithObjectStringSimpleValue() {
-        Div message = createMessageDiv("value-selection-message");
-
-        // begin-source-example
-        // source-example-heading: Value selection from objects
-        ComboBox<Song> comboBox = new ComboBox<>("Artists");
-        comboBox.setItemLabelGenerator(Song::getArtist);
-
-        List<Song> listOfSongs = createListOfSongs();
-
-        comboBox.setItems(listOfSongs);
-
-        comboBox.addValueChangeListener(event -> {
-            if (event.getSource().isEmpty()) {
-                message.setText("No artist selected");
-            } else if (event.getOldValue() == null) {
-                message.setText(
-                        "Selected artist: " + event.getValue().getArtist());
-            } else {
-                message.setText(
-                        "Selected artist: " + event.getValue().getArtist()
-                                + "\nThe old selection was: "
-                                + event.getOldValue().getArtist());
-            }
-        });
-        // end-source-example
-
-        comboBox.getStyle().set(ElementConstants.STYLE_WIDTH, WIDTH_STRING);
-        comboBox.setId("value-selection-box");
-        addCard("Value selection from objects", comboBox, message);
-    }
-
-    private void createDisabledComboBox() {
-        Div message = createMessageDiv("disabled-combobox-message");
-        // begin-source-example
-        // source-example-heading: Disabled ComboBox
-        ComboBox<String> comboBox = new ComboBox<>("Disabled ComboBox");
-        comboBox.setEnabled(false);
-        // end-source-example
-        comboBox.setItems("Google Chrome", "Mozilla Firefox", "Opera",
-                "Apple Safari", "Microsoft Edge");
-        comboBox.addValueChangeListener(event -> {
-            if (event.getSource().isEmpty()) {
-                message.setText("No browser selected");
-            } else {
-                message.setText("Selected browser: " + event.getValue());
-            }
-        });
-        comboBox.getStyle().set(ElementConstants.STYLE_WIDTH, WIDTH_STRING);
-        comboBox.setId("disabled-combo-box");
-        addCard("Disabled ComboBox", comboBox, message);
-    }
-
-    private void createComboBoxUsingTemplateRenderer() {
-        Div message = createMessageDiv("template-selection-message");
-
-        //@formatter:off
-        // begin-source-example
-        // source-example-heading: Rendering items using TemplateRenderer
-        ComboBox<Song> comboBox = new ComboBox<>();
-
-        List<Song> listOfSongs = createListOfSongs();
-
-        /*
-         * Providing a custom item filter allows filtering based on all of
-         * the rendered properties:
-         */
-        ItemFilter<Song> filter = (song, filterString) ->
-                song.getName().toLowerCase()
-                    .contains(filterString.toLowerCase())
-                || song.getArtist().toLowerCase()
-                    .contains(filterString.toLowerCase());
-
-        comboBox.setItems(filter, listOfSongs);
-        comboBox.setItemLabelGenerator(Song::getName);
-        comboBox.setRenderer(TemplateRenderer.<Song> of(
-                "<div>[[item.song]]<br><small>[[item.artist]]</small></div>")
-                .withProperty("song", Song::getName)
-                .withProperty("artist", Song::getArtist));
-
-        comboBox.addValueChangeListener(event -> {
-            if (event.getSource().isEmpty()) {
-                message.setText("No artist selected");
-            } else if (event.getOldValue() == null) {
-                message.setText(
-                        "Selected artist: " + event.getValue().getArtist());
-            } else {
-                message.setText(
-                        "Selected artist: " + event.getValue().getArtist()
-                                + "\nThe old selection was: "
-                                + event.getOldValue().getArtist());
-            }
-        });
-        // end-source-example
-        //@formatter:on
-
-        comboBox.getStyle().set(ElementConstants.STYLE_WIDTH, WIDTH_STRING);
-        comboBox.setId("template-selection-box");
-        addCard("Using templates", "Rendering items using TemplateRenderer",
-                comboBox, message);
-    }
-
-    private void createComboBoxUsingComponentRenderer() {
-        Div message = createMessageDiv("component-selection-message");
-
-        //@formatter:off
-        // begin-source-example
-        // source-example-heading: Rendering items using ComponentTemplateRenderer
-        ComboBox<Song> comboBox = new ComboBox<>();
-
-        List<Song> listOfSongs = createListOfSongs();
-
-        /*
-         * Providing a custom item filter allows filtering based on all of
-         * the rendered properties:
-         */
-        ItemFilter<Song> filter = (song, filterString) ->
-                song.getName().toLowerCase()
-                    .contains(filterString.toLowerCase())
-                || song.getArtist().toLowerCase()
-                    .contains(filterString.toLowerCase());
-
-        comboBox.setItems(filter, listOfSongs);
-
-        comboBox.setItemLabelGenerator(Song::getName);
-
-        comboBox.setRenderer(new ComponentRenderer<>(item -> {
-            VerticalLayout container = new VerticalLayout();
-
-            Label song = new Label(item.getName());
-            container.add(song);
-
-            Label artist = new Label(item.getArtist());
-            artist.getStyle().set("fontSize", "smaller");
-            container.add(artist);
-
-            return container;
-        }));
-
-        comboBox.addValueChangeListener(event -> {
-            if (event.getSource().isEmpty()) {
-                message.setText("No artist selected");
-            } else if (event.getOldValue() == null) {
-                message.setText(
-                        "Selected artist: " + event.getValue().getArtist());
-            } else {
-                message.setText(
-                        "Selected artist: " + event.getValue().getArtist()
-                                + "\nThe old selection was: "
-                                + event.getOldValue().getArtist());
-            }
-        });
-        // end-source-example
-        //@formatter:on
-
-        comboBox.getStyle().set(ElementConstants.STYLE_WIDTH, WIDTH_STRING);
-        comboBox.setId("component-selection-box");
-        addCard("Using components",
-                "Rendering items using ComponentTemplateRenderer", comboBox,
-                message);
-    }
-
-    private void createComboBoxWithInMemoryLazyLoading() {
-        // begin-source-example
-        // source-example-heading: Lazy loading between client and server
-        ComboBox<String> comboBox = new ComboBox<>();
-
-        /*
-         * Using a large data set makes the browser request items lazily as the
-         * user scrolls down the overlay. This will also trigger server-side
-         * filtering.
-         */
-        List<String> names = getNames(500);
-        comboBox.setItems(names);
-        // end-source-example
-
-        comboBox.setId("lazy-loading-box");
-        addCard("Lazy Loading", "Lazy loading between client and server",
-                comboBox);
-    }
-
-    private void createComboBoxWithCallbackLazyLoading() {
-        //@formatter:off
-        // begin-source-example
-        // source-example-heading: Lazy loading with callbacks
-        ComboBox<String> comboBox = new ComboBox<>();
-
-        /*
-         * This data provider doesn't load all the items to the server memory
-         * right away. The component calls the first provided callback to fetch
-         * items from the given range with the given filter. The second callback
-         * should provide the number of items that match the query.
-         */
-        comboBox.setDataProvider(
-                (filter, offset, limit) ->
-                    IntStream.range(offset, offset + limit)
-                        .mapToObj(i -> "Item " + i),
-                filter -> 500);
-
-        // end-source-example
-        //@formatter:on
-        comboBox.setId("callback-box");
-        addCard("Lazy Loading", "Lazy loading with callbacks", comboBox);
-    }
-
-    private List<String> getNames(int count) {
-        Faker faker = Faker.instance();
-        return IntStream.range(0, count).mapToObj(i -> faker.name().fullName())
-                .collect(Collectors.toList());
-    }
-
-    private List<Song> createListOfSongs() {
-        List<Song> listOfSongs = new ArrayList<>();
-        listOfSongs.add(new Song("A V Club Disagrees", "Haircuts for Men",
-                "Physical Fitness"));
-        listOfSongs.add(new Song("Sculpted", "Haywyre", "Two Fold Pt.1"));
-        listOfSongs.add(
-                new Song("Voices of a Distant Star", "Killigrew", "Animus II"));
-        return listOfSongs;
-    }
-
-    private Div createMessageDiv(String id) {
-        Div message = new Div();
-        message.setId(id);
-        message.getStyle().set("whiteSpace", "pre");
-        return message;
+        addCard("Empty list error", instructions, comboBox);
     }
 }
